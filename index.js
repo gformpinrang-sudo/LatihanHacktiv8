@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import cors from 'cors';
 import multer from 'multer';
 import { GoogleGenAI } from '@google/genai';
 
@@ -18,7 +19,7 @@ if (!API_KEY) {
 const ai = new GoogleGenAI({ apiKey: API_KEY || '' });
 
 // Model default Gemini (dapat dioverride via .env GEMINI_MODEL)
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 
 // Batas ukuran file aman (25MB untuk buffer memori agar mencegah Out-of-Memory / DoS)
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
@@ -56,16 +57,29 @@ const uploadMedia = upload.fields([
   { name: 'media', maxCount: 1 },
 ]);
 
+app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Header keamanan dasar (Security Headers)
 app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
   next();
 });
+
+// Middleware untuk menyajikan folder static jika diakses langsung dari server ini
+app.use(express.static('static', { index: false }));
+app.use('/static', express.static('static'));
+
 
 // ==========================================
 // 3. HELPER FUNCTIONS
@@ -185,11 +199,15 @@ async function createMediaPart(file) {
 /**
  * Pemanggilan Gemini dengan auto-retry aman saat 503
  */
-async function generateContentWithRetry(model, contents, maxRetries = 2) {
+async function generateContentWithRetry(model, contents, config = {}, maxRetries = 2) {
   let lastError;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await ai.models.generateContent({ model, contents });
+      const payload = { model, contents };
+      if (config && Object.keys(config).length > 0) {
+        payload.config = config;
+      }
+      return await ai.models.generateContent(payload);
     } catch (err) {
       lastError = err;
       const is503 = err?.status === 503 || err?.message?.includes('503');
@@ -218,7 +236,16 @@ function requireApiKey(req, res, next) {
 // 4. ROUTES
 // ==========================================
 
-// Health Check & Panduan API
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'online',
+    currentModel: GEMINI_MODEL,
+    message: 'Server Gemini AI Hacktiv8 aman & aktif.',
+  });
+});
+
+// Panduan API & Status
 app.get('/', (req, res) => {
   res.status(200).json({
     status: 'online',
@@ -432,21 +459,26 @@ app.post('/generate-multimodal', requireApiKey, uploadMedia, async (req, res) =>
   }
 
   const category = getMediaCategory(file.mimetype);
+  const mode = req.body?.mode || (category === 'image' ? 'flutter_ui' : 'prd');
   const defaultPrompts = {
-    image: 'Deskripsikan dan analisis gambar ini secara detail.',
-    document: 'Analisis dan buat ringkasan poin-poin penting dari dokumen ini.',
-    audio: 'Transkripsikan isi audio ini dan buat ringkasan isinya.',
-    video: 'Jelaskan apa yang terjadi dalam video ini secara runtut dan detail.',
-    unknown: 'Analisis dan jelaskan isi berkas ini.',
+    image: 'Analisis gambar mockup / desain UI ini secara detail dan rancang kode widget Flutter modern (Anti-Slop) dengan Material 3 token.',
+    document: 'Analisis dokumen spesifikasi teknis ini dan buatkan Product Requirement Document (PRD) yang komprehensif untuk aplikasi Flutter.',
+    audio: 'Transkripsikan isi rekaman suara ini dan rangkum menjadi spesifikasi modul aplikasi mobile Flutter.',
+    video: 'Jelaskan apa yang terjadi dalam video demo / bug aplikasi ini secara kronologis dan berikan rekomendasi teknis perbaikan untuk Flutter.',
+    unknown: 'Analisis berkas ini dan berikan rekomendasi implementasi dalam ekosistem Flutter & Dart.',
   };
 
-  const prompt = sanitizePrompt(req.body?.prompt) || defaultPrompts[category] || defaultPrompts.unknown;
+  const userPrompt = sanitizePrompt(req.body?.prompt);
+  const prompt = userPrompt || defaultPrompts[category] || defaultPrompts.unknown;
+  const selectedSystemInstruction = SYSTEM_PRESETS[mode] || SYSTEM_PRESETS.general;
 
   try {
     const media = await createMediaPart(file);
     const contents = [prompt, media.part];
 
-    const response = await generateContentWithRetry(GEMINI_MODEL, contents);
+    const response = await generateContentWithRetry(GEMINI_MODEL, contents, {
+      systemInstruction: selectedSystemInstruction,
+    });
     res.status(200).json({
       result: response.text,
       category,
@@ -462,10 +494,127 @@ app.post('/generate-multimodal', requireApiKey, uploadMedia, async (req, res) =>
   }
 });
 
-// 7. Chat Endpoint (Multi-turn Conversation)
+// ==========================================
+// PRESET SYSTEM INSTRUCTIONS & DOMAIN GUARDRAILS
+// ==========================================
+const FLUTTER_DOMAIN_GUARDRAIL = `
+[PANDUAN UTAMA: SPESIALISASI FLUTTER & BATASAN DOMAIN KETAT]
+1. IDENTITAS & OTORITAS:
+   Anda adalah "FlutterCraft AI", AI Principal Mobile Architect dan Senior Flutter & Dart Specialist kelas dunia.
+   Keahlian Anda terfokus PENUH dan EKSKLUSIF pada:
+   - Bahasa Pemrograman Dart 3+ (Pattern matching, records, sealed classes, class modifiers, null-safety ketat).
+   - Flutter Framework (Widget lifecycle, Material 3 design tokens, Cupertino, CustomPainter, slivers, animations).
+   - Pembuatan PRD Teknis (Product Requirement Document) lengkap dengan User Journey, Edge Cases, dan Acceptance Criteria (Gherkin).
+   - Desain UI Modern Bebas 'AI Slop' (Atomic reusable widgets, shimmer loading skeletons, empty & error states yang elegan).
+   - Arsitektur & State Management (Riverpod, BLoC, Cubit, Provider, Signals, Clean Architecture, Repository Pattern).
+   - Mobile Engineering Best Practices (Penanganan RenderFlex overflow, memori leak, performa 60/120fps, GoRouter, Dio/networking, SQLite/Hive/Isar).
+
+2. KEBIJAKAN PENOLAKAN KETAT (OUT-OF-SCOPE REFUSAL GUARDRAIL):
+   Domain keahlian Anda DIBATASI KHUSUS hanya untuk ekosistem Flutter, Dart, arsitektur mobile, dan rekayasa perangkat lunak terkait aplikasi.
+   JIKA user mengajukan pertanyaan DI LUAR DOMAIN INI, misalnya:
+   - Medis, kesehatan, pengobatan, atau farmasi (CONTOH NYATA: "obat flu apa", "obat sakit kepala apa", diagnosa penyakit, resep obat).
+   - Kuliner, masakan, dan resep makanan umum non-teknis.
+   - Astrologi, ramalan, zodiak, gosip artis/selebriti.
+   - Politik praktis, pemilu, atau isu non-teknologi.
+   - Pertanyaan umum non-teknis lainnya yang tidak berkaitan dengan aplikasi, Flutter, Dart, atau software engineering.
+
+   ATURAN EKSEKUSI PENOLAKAN:
+   - Anda WAJIB LANGSUNG MENOLAK memberikan jawaban atau rekomendasi untuk topik di luar konteks tersebut.
+   - DILARANG memberikan saran medis atau nama obat apa pun!
+   - Berikan respons penolakan yang ramah, sopan, namun tegas dengan format terstruktur berikut:
+
+⚠️ **Pertanyaan di Luar Konteks Keahlian**
+
+Mohon maaf, saya adalah **FlutterCraft AI** yang dirancang khusus sebagai **Spesialis Pengembangan Aplikasi Flutter & Mobile Software Architecture**.
+
+Saya tidak memiliki kapasitas untuk memberikan informasi atau rekomendasi di luar bidang rekayasa perangkat lunak mobile (seperti pertanyaan medis/kesehatan, obat-obatan, resep masakan, atau topik umum non-teknis lainnya).
+
+💡 **Silakan ajukan pertanyaan seputar pengembangan aplikasi Flutter, seperti:**
+- Menyusun PRD (Product Requirement Document) teknis untuk fitur atau modul aplikasi baru
+- Merancang kode widget Flutter modern (Material 3 & Anti-Slop UI)
+- Memilih dan menerapkan State Management (Riverpod / BLoC / Cubit)
+- Mengatasi bug Flutter (RenderFlex overflow, context lifecycle, optimasi build)
+`;
+
+const SYSTEM_PRESETS = {
+  prd: `${FLUTTER_DOMAIN_GUARDRAIL}
+
+[MODE KHUSUS: PRODUCT REQUIREMENT DOCUMENT (PRD) GENERATOR]
+Anda adalah Senior Product Manager & Mobile Software Architect spesialis Flutter.
+Tugas Anda adalah mengubah ide atau kebutuhan fitur dari user menjadi Product Requirement Document (PRD) yang komprehensif, rapi, dan siap dieksekusi langsung oleh developer Flutter atau AI coding agent.
+Format output WAJIB menggunakan Markdown (.md) standar industri dengan struktur:
+1. 📌 Ringkasan Eksekutif & Objektif Fitur
+2. 👥 User Persona & User Journey
+3. 📱 Screen Breakdown & UI/UX Specs (nama screen, layout constraints, interaksi, responsive rules)
+4. 🔄 State Management & Data Flow (Events, States, Riverpod/BLoC architecture)
+5. 🗄️ Data Contracts & Schema DTO (JSON Request/Response, Dart Models)
+6. ⚠️ Edge Cases, Validasi, & Error Handling (Koneksi offline, network failure, form invalid)
+7. ✅ Acceptance Criteria (Format Gherkin: Given - When - Then)
+Gunakan format markdown yang sangat terstruktur, profesional, dan siap simpan.`,
+
+  flutter_ui: `${FLUTTER_DOMAIN_GUARDRAIL}
+
+[MODE KHUSUS: FLUTTER UI MODERN (ANTI-SLOP ENGINE)]
+Anda adalah Principal Flutter & Mobile UX Engineer kelas dunia.
+Tugas Anda adalah merancang dan menulis kode UI Flutter (Dart 3+) yang indah, modern, dan BEBAS DARI 'AI UI SLOP'.
+ATURAN ANTI-SLOP WAJIB DIIKUTI:
+1. DILARANG membuat kode monolitik dalam 1 method build() raksasa. Wajib memecah UI menjadi atomic reusable widgets (komponen kecil yang modular).
+2. Wajib menggunakan Material 3 token-driven: gunakan Theme.of(context).colorScheme dan Theme.of(context).textTheme. DILARANG KERAS menggunakan Colors.blue, Colors.grey, atau warna hardcoded sembarangan tanpa semantic token.
+3. Wajib memikirkan micro-interactions: gunakan InkWell / GestureDetector dengan feedback visual (ripple), hero animations, dan transisi halus.
+4. Wajib responsif dan anti-overflow: gunakan SingleChildScrollView, SafeArea, dan LayoutBuilder bila diperlukan agar aman dari RenderFlex overflow saat keyboard muncul.
+5. Lengkapi setiap screen dengan state visual yang matang:
+   - Shimmer/Skeleton loading state (bukan CircularProgressIndicator polos di tengah).
+   - Empty state informatif dengan ilustrasi/ikon bermakna dan tombol aksi (CTA).
+   - Error state yang ramah pengguna dengan tombol 'Coba Lagi'.
+6. Gunakan kaidah Dart 3 modern: const constructor, records, pattern matching, dan null-safety ketat.`,
+
+  state: `${FLUTTER_DOMAIN_GUARDRAIL}
+
+[MODE KHUSUS: ARSITEKTUR & STATE MANAGEMENT]
+Anda adalah Senior Flutter Architecture Specialist (Clean Architecture, BLoC & Riverpod).
+Tugas Anda adalah merancang dan mengimplementasikan state management dan arsitektur data untuk Flutter:
+1. Pisahkan Presentation Layer, Domain Layer (UseCases/Entities), dan Data Layer (Repositories/DataSources/DTOs).
+2. Tulis implementasi BLoC / Cubit atau Riverpod (AsyncNotifier / StateNotifier) yang type-safe, immutability, dan clean.
+3. Sertakan error handling yang kokoh (Either / Result pattern) dan logging.
+4. Berikan petunjuk Dependency Injection (misal get_it atau Riverpod providers).`,
+
+  pipeline: `${FLUTTER_DOMAIN_GUARDRAIL}
+
+[MODE KHUSUS: 3-IN-1 FULL PIPELINE]
+Anda adalah Principal Mobile Architect & Flutter Lead Engineer.
+Tugas Anda adalah memproses ide aplikasi/fitur dari user dan LANGSUNG menyusun 3 PILAR UTAMA secara lengkap dalam 1 respons terstruktur:
+
+# 📑 BAGIAN 1: Product Requirement Document (PRD)
+- Ringkasan Eksekutif & User Journey
+- Screen Breakdown & Spesifikasi Fungsional
+- Edge cases & Acceptance Criteria (Gherkin format)
+
+# 🎨 BAGIAN 2: Desain Flutter UI Modern (Anti-Slop Engine)
+- Kode Widget Flutter modular (Atomic reusable widgets)
+- Material 3 Theme tokens (Theme.of(context).colorScheme)
+- Shimmer loading state, Empty state, dan Micro-interactions
+- Responsive dan aman dari RenderFlex overflow
+
+# ⚙️ BAGIAN 3: Arsitektur & State Management
+- Implementasi State Management (Riverpod / BLoC)
+- DTO Model, Immutability, dan Error handling
+
+Sajikan dengan pemisah yang jelas, profesional, dan siap diimplementasikan langsung ke codebase Flutter.`,
+
+  general: `${FLUTTER_DOMAIN_GUARDRAIL}
+
+[MODE KHUSUS: KONSULTASI & TROUBLESHOOTING FLUTTER]
+Anda adalah Principal Flutter Consultant & Senior Dart Specialist kelas dunia.
+Tugas Anda adalah menjawab pertanyaan konsultasi, troubleshooting bug Flutter, analisis performa, struktur project, integrasi package, dan arsitektur mobile.
+Selalu sertakan penjelasan yang tajam, contoh kode Dart 3 idiomatic, dan rekomendasi industri terbaik.`
+};
+
+// 7. Chat Endpoint (Multi-turn Conversation with Flutter & PRD Presets)
 app.post('/chat', requireApiKey, async (req, res) => {
   const message = sanitizePrompt(req.body?.message);
   const rawHistory = req.body?.history;
+  const mode = req.body?.mode || 'prd';
+  const selectedSystemInstruction = SYSTEM_PRESETS[mode] || SYSTEM_PRESETS.prd;
 
   if (!message) {
     return res.status(400).json({ message: 'Field "message" wajib diisi.' });
@@ -475,16 +624,37 @@ app.post('/chat', requireApiKey, async (req, res) => {
   const safeHistory = Array.isArray(rawHistory) ? rawHistory : [];
 
   try {
-    const chat = ai.chats.create({
-      model: GEMINI_MODEL,
-      history: safeHistory,
-    });
-
-    const response = await chat.sendMessage({ message });
+    let response;
+    let chat;
+    try {
+      chat = ai.chats.create({
+        model: GEMINI_MODEL,
+        history: safeHistory,
+        config: {
+          systemInstruction: selectedSystemInstruction,
+        },
+      });
+      response = await chat.sendMessage({ message });
+    } catch (modelErr) {
+      if ((modelErr?.status === 503 || modelErr?.message?.includes('503')) && GEMINI_MODEL !== 'gemini-3.1-flash-lite') {
+        console.warn(`[Fallback] Model ${GEMINI_MODEL} sedang sibuk (503). Beralih sementara ke gemini-3.1-flash-lite...`);
+        chat = ai.chats.create({
+          model: 'gemini-3.1-flash-lite',
+          history: safeHistory,
+          config: {
+            systemInstruction: selectedSystemInstruction,
+          },
+        });
+        response = await chat.sendMessage({ message });
+      } else {
+        throw modelErr;
+      }
+    }
 
     res.status(200).json({
       result: response.text,
       history: chat.getHistory(),
+      mode,
     });
   } catch (e) {
     console.error('Error /chat:', e?.message || e);
