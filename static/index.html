@@ -6,7 +6,7 @@
   <title>FlutterCraft AI - PRD & Anti-Slop UI Architect</title>
   <meta name="description" content="AI Assistant untuk Flutter Developer: Generator PRD teknis, file Markdown, dan arsitektur UI modern bebas AI Slop." />
 
-  <link rel="icon" type="image/png" href="flutter-logo.png" />
+  <link rel="icon" type="image/png" href="flutter-logo.png?v=3" />
 
   <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -29,12 +29,29 @@
     <header class="app-header">
       <div class="header-left">
         <div class="gemini-brand-icon">
-          <img src="flutter-logo.png" alt="Flutter Logo" class="brand-logo-img" />
+          <img src="flutter-logo.png?v=3" alt="Flutter Logo" class="brand-logo-img" />
         </div>
         <div class="header-text">
           <div class="header-title-row">
             <h1>FlutterCraft AI</h1>
-            <span class="model-badge" id="model-badge">3.8-flash</span>
+            <div class="model-selector-wrap" id="model-selector-wrap">
+              <button type="button" class="model-badge-btn" id="model-badge-btn" aria-haspopup="true" aria-expanded="false" title="Pilih versi model AI (Default: Terbaru)">
+                <span class="model-badge-dot"></span>
+                <span class="model-badge-text" id="model-badge">3.8-flash</span>
+                <svg class="model-badge-arrow" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+              <div class="model-dropdown-menu hidden" id="model-dropdown-menu" role="menu">
+                <div class="model-dropdown-header">
+                  <span>Pilih Versi AI</span>
+                  <span class="model-dropdown-hint">Default: AI Terbaru</span>
+                </div>
+                <div class="model-options-list" id="model-options-list">
+                  <!-- Pilihan model otomatis diisi oleh script.js -->
+                </div>
+              </div>
+            </div>
           </div>
           <div class="server-status" id="server-status">
             <span class="status-dot online"></span>
@@ -91,48 +108,222 @@
       </button>
     </nav>
 
+    <!-- Guided Architecture & Tech Stack Wizard (Khusus Menu 1: PRD) -->
+    <section id="prd-arch-guide" class="prd-arch-guide" aria-label="Panduan Arsitektur & Tech Stack">
+      <div class="arch-guide-header">
+        <div class="arch-guide-title-wrap">
+          <div class="arch-guide-icon">🏛️</div>
+          <div class="arch-guide-text">
+            <div class="arch-guide-title-row">
+              <h3>Fondasi Arsitektur & Tech Stack</h3>
+              <span class="arch-badge-golden" id="arch-badge-status">⚡ Golden Stack Aktif</span>
+            </div>
+            <p class="arch-guide-desc">Tentukan arsitektur & teknologi sebelum menyusun PRD agar rencana kerja terstandarisasi Clean Code & SOLID.</p>
+          </div>
+        </div>
+        <div class="arch-guide-actions">
+          <button type="button" id="btn-reset-golden" class="btn-golden-preset" title="Gunakan rekomendasi arsitektur terbaik (Golden Stack)">
+            ⚡ Rekomendasi Terbaik
+          </button>
+          <button type="button" id="btn-toggle-arch" class="btn-toggle-arch" title="Buka/Tutup Panel Pilihan Arsitektur" aria-expanded="true">
+            <span class="toggle-text">Tutup</span>
+            <svg class="toggle-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="18 15 12 9 6 15"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="arch-guide-body" id="arch-guide-body">
+        <div class="arch-dropdowns-grid">
+          <!-- 1. Pola Arsitektur -->
+          <div class="arch-field">
+            <label for="select-arch-pattern">
+              <span class="field-icon">📐</span> Pola Arsitektur
+            </label>
+            <select id="select-arch-pattern" class="arch-select">
+              <option value="Clean Architecture (Feature-First)" selected>Clean Architecture (Feature-First) ⭐</option>
+              <option value="Clean Architecture (Layer-First)">Clean Architecture (Layer-First)</option>
+              <option value="Modular MVVM / Controller Pattern">Modular MVVM Pattern</option>
+              <option value="Tidak Ada (Flat / Struktur Standar Flutter)">Tidak Ada (Flat / Tanpa Pola Khusus)</option>
+            </select>
+          </div>
+
+          <!-- 2. State Management -->
+          <div class="arch-field">
+            <label for="select-arch-state">
+              <span class="field-icon">⚙️</span> State Management
+            </label>
+            <select id="select-arch-state" class="arch-select">
+              <option value="flutter_bloc & Cubit (UDF & Event-Driven)" selected>flutter_bloc & Cubit (UDF) ⭐</option>
+              <option value="Riverpod 2.x (AsyncNotifier & Compile-Safe)">Riverpod 2.x (AsyncNotifier)</option>
+              <option value="Provider / ChangeNotifier">Provider / ChangeNotifier</option>
+              <option value="Tidak Ada (StatefulWidget Saja / State Lokal)">Tidak Ada (StatefulWidget Saja)</option>
+            </select>
+          </div>
+
+          <!-- 3. Local Database & Persistence -->
+          <div class="arch-field">
+            <label for="select-arch-database">
+              <span class="field-icon">🗄️</span> Database Lokal
+            </label>
+            <select id="select-arch-database" class="arch-select">
+              <option value="Drift SQLite (Type-Safe Relasional & Stream)" selected>Drift SQLite (Type-Safe) ⭐</option>
+              <option value="Isar / Hive CE (NoSQL Fast Document)">Isar / Hive CE (NoSQL)</option>
+              <option value="SharedPreferences & SecureStorage Saja">SharedPreferences & SecureStorage Saja</option>
+              <option value="Tidak Ada (Full Cloud / In-Memory Saja)">Tidak Ada (In-Memory / Full Cloud)</option>
+            </select>
+          </div>
+
+          <!-- 4. Navigasi & Routing -->
+          <div class="arch-field">
+            <label for="select-arch-nav">
+              <span class="field-icon">🧭</span> Navigasi & Routing
+            </label>
+            <select id="select-arch-nav" class="arch-select">
+              <option value="GoRouter (Declarative & Redirect Guard)" selected>GoRouter (Redirect Guard) ⭐</option>
+              <option value="AutoRoute (Code-Generated Routing)">AutoRoute (Code-Generated)</option>
+              <option value="Native Flutter Navigator 2.0">Native Flutter Navigator 2.0</option>
+              <option value="Tidak Ada (Navigator 1.0 Dasar Bawaan)">Tidak Ada (Navigator 1.0 Dasar)</option>
+            </select>
+          </div>
+
+          <!-- 5. Data Modeling & Immutability -->
+          <div class="arch-field">
+            <label for="select-arch-model">
+              <span class="field-icon">🧊</span> Data Modeling
+            </label>
+            <select id="select-arch-model" class="arch-select">
+              <option value="Freezed + json_serializable (Immutable Unions)" selected>Freezed + json_serializable ⭐</option>
+              <option value="Dart 3 Native (Sealed Classes & Records)">Dart 3 Native (Sealed/Records)</option>
+              <option value="Equatable / Plain Dart Classes">Equatable / Plain Dart Classes</option>
+              <option value="Tidak Ada (Plain Dart Class Manual)">Tidak Ada (Plain Dart Manual)</option>
+            </select>
+          </div>
+
+          <!-- 6. Network & HTTP Client -->
+          <div class="arch-field">
+            <label for="select-arch-network">
+              <span class="field-icon">🌐</span> Network Client
+            </label>
+            <select id="select-arch-network" class="arch-select">
+              <option value="Dio + Pretty Dio Logger & Interceptors" selected>Dio + Interceptors & Logger ⭐</option>
+              <option value="HTTP Client Standard bawaan">HTTP Client Standard</option>
+              <option value="Supabase / Firebase Client SDK">Supabase / Firebase Client SDK</option>
+              <option value="Tidak Ada (Aplikasi Full Offline / Standalone)">Tidak Ada (Full Offline Standalone) 📴</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Bagian 2: Sistem Pewarnaan & Material 3 Theme Tokens -->
+        <div class="color-system-section">
+          <div class="section-divider-title">
+            <span class="sec-icon">🎨</span>
+            <span>Palet Warna & Material 3 Design Tokens</span>
+          </div>
+
+          <div class="color-controls-grid">
+            <!-- 1. Pilihan Preset Palet Industri -->
+            <div class="arch-field">
+              <label for="select-color-palette">
+                <span class="field-icon">🌈</span> Palet Warna UI
+              </label>
+              <select id="select-color-palette" class="arch-select">
+                <option value="Oceanic FinTech" data-primary="#0A2540" data-accent="#00D4B2" selected>Oceanic FinTech (Navy #0A2540 & Cyan #00D4B2) ⭐</option>
+                <option value="Emerald Nature" data-primary="#059669" data-accent="#A7F3D0">Emerald Nature (Forest #059669 & Mint #A7F3D0)</option>
+                <option value="Royal Indigo SaaS" data-primary="#4F46E5" data-accent="#8B5CF6">Royal Indigo (Indigo #4F46E5 & Violet #8B5CF6)</option>
+                <option value="Sunset Coral & Amber" data-primary="#F43F5E" data-accent="#F59E0B">Sunset Coral (Coral #F43F5E & Amber #F59E0B)</option>
+                <option value="Minimalist Monochrome" data-primary="#0F172A" data-accent="#64748B">Minimalist Slate (Midnight #0F172A & Steel #64748B)</option>
+                <option value="Material 3 Flutter" data-primary="#0284C7" data-accent="#4F46E5">Material 3 Flutter (Sky #0284C7 & Indigo #4F46E5)</option>
+                <option value="Kustom Brand Hex" data-primary="#6366F1" data-accent="#EC4899">Kustom Brand Hex (Input Sendiri)</option>
+                <option value="Tidak Ada (Monochrome Polos / Wireframe)" data-primary="#18181B" data-accent="#71717A">Tidak Ada (Wireframe Polos)</option>
+              </select>
+            </div>
+
+            <!-- 2. Mode Tema (Light / Dark) -->
+            <div class="arch-field">
+              <label for="select-color-mode">
+                <span class="field-icon">🌗</span> Dukungan Mode Tema
+              </label>
+              <select id="select-color-mode" class="arch-select">
+                <option value="Dua Mode (Light & Dark Theme Otomatis)" selected>Dua Mode (Light & Dark Theme) ⭐</option>
+                <option value="Light Theme Saja">Light Theme Saja</option>
+                <option value="Dark Theme Saja (OLED / Dark Mode)">Dark Theme Saja (OLED/Dark)</option>
+              </select>
+            </div>
+
+            <!-- 3. Visual Swatch Preview -->
+            <div class="arch-field color-preview-field">
+              <label>
+                <span class="field-icon">👁️</span> Preview Swatch Warna
+              </label>
+              <div class="color-preview-box">
+                <div class="swatch-item">
+                  <span class="swatch-dot" id="swatch-primary-dot" style="background-color: #0A2540;"></span>
+                  <span class="swatch-label">Primary: <strong id="swatch-primary-hex">#0A2540</strong></span>
+                </div>
+                <div class="swatch-item">
+                  <span class="swatch-dot" id="swatch-accent-dot" style="background-color: #00D4B2;"></span>
+                  <span class="swatch-label">Accent: <strong id="swatch-accent-hex">#00D4B2</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Input Hex Kustom (Ditampilkan jika memilih Kustom) -->
+          <div id="custom-hex-container" class="custom-hex-row hidden">
+            <div class="arch-field">
+              <label for="input-custom-primary">Primary Brand Hex</label>
+              <div class="color-input-wrap">
+                <input type="color" id="picker-custom-primary" value="#6366F1" class="color-native-picker" />
+                <input type="text" id="input-custom-primary" value="#6366F1" placeholder="#6366F1" maxlength="7" class="arch-input" />
+              </div>
+            </div>
+            <div class="arch-field">
+              <label for="input-custom-accent">Accent Brand Hex</label>
+              <div class="color-input-wrap">
+                <input type="color" id="picker-custom-accent" value="#EC4899" class="color-native-picker" />
+                <input type="text" id="input-custom-accent" value="#EC4899" placeholder="#EC4899" maxlength="7" class="arch-input" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Architecture & Color Summary Pill -->
+        <div class="arch-summary-bar">
+          <div class="arch-summary-group">
+            <span class="arch-summary-label">🎯 Tech Stack:</span>
+            <span class="arch-summary-chips" id="arch-summary-chips">
+              Clean Architecture • BLoC/Cubit • Drift SQLite • GoRouter • Freezed • Dio
+            </span>
+          </div>
+          <div class="arch-summary-group">
+            <span class="arch-summary-label">🎨 Warna:</span>
+            <span class="arch-summary-chips" id="arch-color-chips">
+              Oceanic FinTech (#0A2540 / #00D4B2) • Dual Mode
+            </span>
+          </div>
+          <div class="arch-summary-group">
+            <span class="arch-summary-label">⚡ Google Vitals:</span>
+            <span class="arch-summary-chips arch-vitals-chip" title="Dynamic Memory (RSS+Swap), Bitmap Memory, Optimized DEX R8">
+              Dynamic RSS/Swap Guard • Bitmap Downsampling • R8 DEX Optimized
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Main Chat Container -->
     <main class="chat-container">
-      <!-- Welcome Screen (Ultra-Compact - Pas di Semua Layar) -->
-      <div id="welcome-screen" class="welcome-screen">
-        <div class="welcome-hero">
-          <h2>Mau bangun fitur apa hari ini?</h2>
-          <p class="welcome-subtitle">Ubah ide mentah jadi PRD teknis siap koding, atau rancang widget Flutter modern bebas UI slop.</p>
+      <!-- Minimalist Canvas Helper (Auto-hide saat percakapan dimulai) -->
+      <div id="welcome-screen" class="welcome-screen minimalist-empty-state">
+        <div class="empty-state-badge">
+          <span class="badge-sparkle">✨</span>
+          <span>Kanvas PRD Siap</span>
         </div>
-
-        <div class="suggestion-chips-grid">
-          <button class="chip-card" data-mode="prd" data-prompt="Buatkan PRD lengkap dalam format Markdown untuk Fitur Scan Struk Belanja dengan OCR dan auto-kategorisasi pengeluaran pada aplikasi personal finance Flutter.">
-            <span class="chip-emoji">📑</span>
-            <div class="chip-text">
-              <strong>Bikin PRD Fitur Scan OCR</strong>
-              <small>User story, screen specs & Gherkin</small>
-            </div>
-          </button>
-
-          <button class="chip-card" data-mode="flutter_ui" data-prompt="Rancang screen Flutter modern untuk Halaman Profil & Statistik Aktivitas User. Ikuti aturan Anti-Slop: atomic widgets, Material 3 colorScheme tokens, shimmer loading, empty state, dan micro-interactions.">
-            <span class="chip-emoji">🎨</span>
-            <div class="chip-text">
-              <strong>Desain Profil Modern</strong>
-              <small>Material 3 tokens, atomic widgets</small>
-            </div>
-          </button>
-
-          <button class="chip-card" data-mode="state" data-prompt="Buatkan arsitektur Riverpod (AsyncNotifier) untuk keranjang belanja (Cart) dan checkout dengan diskon voucher, lengkap dengan state Immutable, error handling, dan unit testable.">
-            <span class="chip-emoji">⚙️</span>
-            <div class="chip-text">
-              <strong>State Management Cart</strong>
-              <small>Riverpod AsyncNotifier & DTO pattern</small>
-            </div>
-          </button>
-
-          <button class="chip-card" data-mode="flutter_ui" data-prompt="Bagaimana cara mencegah RenderFlex overflow saat keyboard muncul pada form pendaftaran kompleks di Flutter? Berikan best practice layout dan kode contohnya.">
-            <span class="chip-emoji">🛡️</span>
-            <div class="chip-text">
-              <strong>Anti RenderFlex Overflow</strong>
-              <small>LayoutBuilder & SingleChildScrollView</small>
-            </div>
-          </button>
-        </div>
+        <p class="empty-state-hint">
+          Pilih fondasi arsitektur & pewarnaan di atas, lalu ketik ide fitur atau aplikasi Flutter yang ingin dibuat pada kotak pesan di bawah.
+        </p>
       </div>
 
       <!-- Chat Messages Scroll Area -->

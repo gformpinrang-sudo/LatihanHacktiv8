@@ -1,8 +1,17 @@
-node_modules/
+/node_modules
 .env
+package-lock.json
+
+# Environment & Logs
 .env.*
 !.env.example
 *.log
 npm-debug.log*
+
+# OS & Editor
 .DS_Store
 Thumbs.db
+.vscode/
+
+# Backups
+static/flutter-logo-backup.png

@@ -18,6 +18,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnTheme = document.getElementById('btn-theme');
   const serverStatus = document.getElementById('server-status');
   const modelBadge = document.getElementById('model-badge');
+  const modelSelectorWrap = document.getElementById('model-selector-wrap');
+  const modelBadgeBtn = document.getElementById('model-badge-btn');
+  const modelDropdownMenu = document.getElementById('model-dropdown-menu');
+  const modelOptionsList = document.getElementById('model-options-list');
   const modeTabs = document.querySelectorAll('.mode-tab');
   const chipButtons = document.querySelectorAll('.chip-card');
 
@@ -33,6 +37,33 @@ document.addEventListener('DOMContentLoaded', () => {
   const attachmentOptions = document.querySelectorAll('.attachment-option');
   const mediaFileInput = document.getElementById('media-file-input');
 
+  // Guided Architecture & Tech Stack Elements (Menu 1: PRD)
+  const prdArchGuide = document.getElementById('prd-arch-guide');
+  const btnToggleArch = document.getElementById('btn-toggle-arch');
+  const btnResetGolden = document.getElementById('btn-reset-golden');
+  const archBadgeStatus = document.getElementById('arch-badge-status');
+  const archSummaryChips = document.getElementById('arch-summary-chips');
+  const selectArchPattern = document.getElementById('select-arch-pattern');
+  const selectArchState = document.getElementById('select-arch-state');
+  const selectArchDatabase = document.getElementById('select-arch-database');
+  const selectArchNav = document.getElementById('select-arch-nav');
+  const selectArchModel = document.getElementById('select-arch-model');
+  const selectArchNetwork = document.getElementById('select-arch-network');
+
+  // Color System & Material 3 Tokens Elements
+  const selectColorPalette = document.getElementById('select-color-palette');
+  const selectColorMode = document.getElementById('select-color-mode');
+  const swatchPrimaryDot = document.getElementById('swatch-primary-dot');
+  const swatchAccentDot = document.getElementById('swatch-accent-dot');
+  const swatchPrimaryHex = document.getElementById('swatch-primary-hex');
+  const swatchAccentHex = document.getElementById('swatch-accent-hex');
+  const customHexContainer = document.getElementById('custom-hex-container');
+  const inputCustomPrimary = document.getElementById('input-custom-primary');
+  const inputCustomAccent = document.getElementById('input-custom-accent');
+  const pickerCustomPrimary = document.getElementById('picker-custom-primary');
+  const pickerCustomAccent = document.getElementById('picker-custom-accent');
+  const archColorChips = document.getElementById('arch-color-chips');
+
   // Konfigurasi API Backend
   const isLocalServer = window.location.origin.includes(':3000');
   const BACKEND_BASE = isLocalServer ? '' : 'http://localhost:3000';
@@ -40,11 +71,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const HEALTH_ENDPOINT = `${BACKEND_BASE}/health`;
   const MULTIMODAL_ENDPOINT = `${BACKEND_BASE}/generate-multimodal`;
 
-  // State percakapan & media
+  // State percakapan, media & PRD aktif
   let currentMode = 'prd'; // default: Bikin Plan / PRD (Langkah 1)
+  let latestActivePRD = ''; // PRD aktif yang dapat diedit & dirujuk oleh Menu 2 dan 3
   let conversationHistory = [];
   let isGenerating = false;
   let selectedMediaFile = null;
+
+  // Global Toast Helper
+  function showToast(message, type = 'info') {
+    let toast = document.getElementById('app-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'app-toast';
+      toast.className = 'app-toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.className = `app-toast show ${type}`;
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => {
+      toast.className = 'app-toast';
+    }, 3800);
+  }
 
   const MODE_CONFIG = {
     flutter_ui: {
@@ -66,7 +115,132 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // ==========================================
-  // 2. CEK KONEKSI SERVER & MODEL INFO
+  // 2. SISTEM PEMILIH MODEL AI (DEFAULT: MODEL TERBARU)
+  // ==========================================
+  const DEFAULT_MODELS = [
+    {
+      id: 'gemini-3.8-flash',
+      shortName: '3.8-flash',
+      name: 'Gemini 3.8 Flash',
+      tag: 'Terbaru ⚡',
+      badgeClass: 'badge-terbaru',
+      desc: 'Model terbaru & rekomendasi utama: respons kilat, cerdas, & efisien untuk PRD & Flutter UI.',
+    },
+    {
+      id: 'gemini-2.5-pro',
+      shortName: '2.5-pro',
+      name: 'Gemini 2.5 Pro',
+      tag: 'Pro 🧠',
+      badgeClass: 'badge-pro',
+      desc: 'Penalaran mendalam (Deep Reasoning) untuk audit arsitektur mobile & logika kompleks.',
+    },
+    {
+      id: 'gemini-2.5-flash',
+      shortName: '2.5-flash',
+      name: 'Gemini 2.5 Flash',
+      tag: 'Flash ⚡',
+      badgeClass: 'badge-flash',
+      desc: 'Model Flash stabil generasi sebelumnya dengan latensi konsisten.',
+    },
+    {
+      id: 'gemini-3.1-flash-lite',
+      shortName: '3.1-flash-lite',
+      name: 'Gemini 3.1 Flash Lite',
+      tag: 'Lite 🪶',
+      badgeClass: 'badge-lite',
+      desc: 'Varian super hemat kuota token, respon ultra ringan & fallback andal.',
+    },
+  ];
+
+  let availableModels = DEFAULT_MODELS;
+  // Default: selalu memakai model terbaru (gemini-3.8-flash) kecuali user memilih yang lain
+  let selectedModelId = localStorage.getItem('fluttercraft_selected_model') || 'gemini-3.8-flash';
+
+  function updateModelBadgeUI() {
+    const current = availableModels.find((m) => m.id === selectedModelId) || availableModels[0];
+    if (modelBadge && current) {
+      modelBadge.textContent = current.shortName;
+    }
+    if (modelBadgeBtn && current) {
+      modelBadgeBtn.title = `Model Aktif: ${current.name} (${current.tag}) - Klik untuk mengganti`;
+    }
+  }
+
+  function renderModelDropdown() {
+    if (!modelOptionsList) return;
+    modelOptionsList.innerHTML = '';
+
+    availableModels.forEach((m) => {
+      const isSelected = m.id === selectedModelId;
+      const itemBtn = document.createElement('button');
+      itemBtn.type = 'button';
+      itemBtn.className = `model-option-item ${isSelected ? 'active' : ''}`;
+      itemBtn.setAttribute('role', 'option');
+      itemBtn.setAttribute('aria-selected', isSelected);
+
+      itemBtn.innerHTML = `
+        <span class="model-option-radio">${isSelected ? '●' : '○'}</span>
+        <div class="model-option-info">
+          <div class="model-option-title-row">
+            <span class="model-option-name">${m.name}</span>
+            <span class="model-option-badge ${m.badgeClass || 'badge-flash'}">${m.tag}</span>
+          </div>
+          <span class="model-option-desc">${m.desc}</span>
+        </div>
+      `;
+
+      itemBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectedModelId = m.id;
+        localStorage.setItem('fluttercraft_selected_model', selectedModelId);
+        updateModelBadgeUI();
+        renderModelDropdown();
+        closeModelDropdown();
+        showToast(`✓ Model AI dialihkan ke: ${m.name}`, 'info');
+      });
+
+      modelOptionsList.appendChild(itemBtn);
+    });
+  }
+
+  function toggleModelDropdown() {
+    if (!modelDropdownMenu || !modelSelectorWrap) return;
+    const isHidden = modelDropdownMenu.classList.contains('hidden');
+    if (isHidden) {
+      modelDropdownMenu.classList.remove('hidden');
+      modelSelectorWrap.classList.add('open');
+      if (modelBadgeBtn) modelBadgeBtn.setAttribute('aria-expanded', 'true');
+    } else {
+      closeModelDropdown();
+    }
+  }
+
+  function closeModelDropdown() {
+    if (!modelDropdownMenu || !modelSelectorWrap) return;
+    modelDropdownMenu.classList.add('hidden');
+    modelSelectorWrap.classList.remove('open');
+    if (modelBadgeBtn) modelBadgeBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  if (modelBadgeBtn) {
+    modelBadgeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleModelDropdown();
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    if (modelSelectorWrap && !modelSelectorWrap.contains(e.target)) {
+      closeModelDropdown();
+    }
+  });
+
+  // Render awal pemilih model
+  updateModelBadgeUI();
+  renderModelDropdown();
+
+  // ==========================================
+  // 3. CEK KONEKSI SERVER & MODEL INFO
   // ==========================================
   async function checkServerConnection() {
     const statusDot = serverStatus.querySelector('.status-dot');
@@ -82,9 +256,20 @@ document.addEventListener('DOMContentLoaded', () => {
         statusDot.className = 'status-dot online';
         statusLabel.textContent = 'Terhubung ke Server';
 
-        if (data.currentModel) {
-          modelBadge.textContent = data.currentModel.replace('gemini-', '');
+        if (Array.isArray(data.availableModels) && data.availableModels.length > 0) {
+          availableModels = data.availableModels.map((m) => ({
+            ...m,
+            badgeClass: m.id.includes('pro') ? 'badge-pro' : (m.id.includes('lite') ? 'badge-lite' : (m.isDefault ? 'badge-terbaru' : 'badge-flash')),
+          }));
+          renderModelDropdown();
         }
+
+        // Jika user belum pernah memilih model manual, pakai default dari server (AI terbaru)
+        if (!localStorage.getItem('fluttercraft_selected_model') && data.defaultModel) {
+          selectedModelId = data.defaultModel;
+        }
+
+        updateModelBadgeUI();
       } else {
         throw new Error('Server non-200');
       }
@@ -98,8 +283,267 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(checkServerConnection, 20000);
 
   // ==========================================
-  // 3. MODE SELECTOR (TABS)
+  // 3. MODE SELECTOR (TABS) & GUIDED ARCHITECTURE (MENU 1)
   // ==========================================
+  const GOLDEN_STACK_DEFAULTS = {
+    pattern: 'Clean Architecture (Feature-First)',
+    state: 'flutter_bloc & Cubit (UDF & Event-Driven)',
+    database: 'Drift SQLite (Type-Safe Relasional & Stream)',
+    nav: 'GoRouter (Declarative & Redirect Guard)',
+    model: 'Freezed + json_serializable (Immutable Unions)',
+    network: 'Dio + Pretty Dio Logger & Interceptors',
+  };
+
+  function getSelectedArchitecture() {
+    return {
+      pattern: selectArchPattern ? selectArchPattern.value : GOLDEN_STACK_DEFAULTS.pattern,
+      state: selectArchState ? selectArchState.value : GOLDEN_STACK_DEFAULTS.state,
+      database: selectArchDatabase ? selectArchDatabase.value : GOLDEN_STACK_DEFAULTS.database,
+      nav: selectArchNav ? selectArchNav.value : GOLDEN_STACK_DEFAULTS.nav,
+      model: selectArchModel ? selectArchModel.value : GOLDEN_STACK_DEFAULTS.model,
+      network: selectArchNetwork ? selectArchNetwork.value : GOLDEN_STACK_DEFAULTS.network,
+    };
+  }
+
+  function updateArchSummary() {
+    const arch = getSelectedArchitecture();
+    if (archSummaryChips) {
+      const parts = [
+        arch.pattern.includes('Tidak Ada') ? 'Tanpa Pola Khusus' : arch.pattern.split(' ')[0],
+        arch.state.includes('Tidak Ada') ? 'StatefulWidget' : arch.state.split(' ')[0],
+        arch.database.includes('Tidak Ada') ? 'Tanpa DB Lokal' : arch.database.split(' ')[0],
+        arch.nav.includes('Tidak Ada') ? 'Navigator 1.0' : arch.nav.split(' ')[0],
+        arch.model.includes('Tidak Ada') ? 'Plain Dart' : arch.model.split(' ')[0],
+        arch.network.includes('Tidak Ada') ? 'Full Offline 📴' : arch.network.split(' ')[0],
+      ];
+      archSummaryChips.textContent = parts.join(' • ');
+    }
+
+    const isGolden =
+      arch.pattern.includes('Feature-First') &&
+      arch.state.includes('flutter_bloc') &&
+      arch.database.includes('Drift') &&
+      arch.nav.includes('GoRouter') &&
+      arch.model.includes('Freezed') &&
+      arch.network.includes('Dio');
+
+    if (archBadgeStatus) {
+      if (isGolden) {
+        archBadgeStatus.textContent = '⚡ Golden Stack Aktif';
+        archBadgeStatus.className = 'arch-badge-golden';
+      } else {
+        const isOffline = arch.network.includes('Tidak Ada') || arch.network.includes('Offline');
+        archBadgeStatus.textContent = isOffline ? '📴 Mode Full Offline' : '🛠️ Arsitektur Kustom';
+        archBadgeStatus.className = 'arch-badge-golden custom';
+      }
+    }
+  }
+
+  function getColorConfig() {
+    if (!selectColorPalette) {
+      return {
+        name: 'Oceanic FinTech',
+        primary: '#0A2540',
+        accent: '#00D4B2',
+        mode: 'Dua Mode (Light & Dark Theme Otomatis)',
+      };
+    }
+
+    const selectedOpt = selectColorPalette.options[selectColorPalette.selectedIndex];
+    const paletteVal = selectedOpt ? selectedOpt.value : 'Oceanic FinTech';
+    let primary = selectedOpt ? selectedOpt.getAttribute('data-primary') || '#0A2540' : '#0A2540';
+    let accent = selectedOpt ? selectedOpt.getAttribute('data-accent') || '#00D4B2' : '#00D4B2';
+    const mode = selectColorMode ? selectColorMode.value : 'Dua Mode (Light & Dark Theme Otomatis)';
+
+    if (paletteVal === 'Kustom Brand Hex') {
+      if (inputCustomPrimary && inputCustomPrimary.value) {
+        primary = inputCustomPrimary.value.trim();
+      }
+      if (inputCustomAccent && inputCustomAccent.value) {
+        accent = inputCustomAccent.value.trim();
+      }
+    }
+
+    return {
+      name: paletteVal,
+      primary,
+      accent,
+      mode,
+    };
+  }
+
+  function updateColorUI() {
+    const color = getColorConfig();
+
+    if (customHexContainer) {
+      if (color.name === 'Kustom Brand Hex') {
+        customHexContainer.classList.remove('hidden');
+      } else {
+        customHexContainer.classList.add('hidden');
+      }
+    }
+
+    if (swatchPrimaryDot) swatchPrimaryDot.style.backgroundColor = color.primary;
+    if (swatchAccentDot) swatchAccentDot.style.backgroundColor = color.accent;
+    if (swatchPrimaryHex) swatchPrimaryHex.textContent = color.primary;
+    if (swatchAccentHex) swatchAccentHex.textContent = color.accent;
+
+    if (archColorChips) {
+      const modeShort = color.mode.includes('Light & Dark') ? 'Dual Mode' : (color.mode.includes('Dark') ? 'Dark' : 'Light');
+      archColorChips.textContent = `${color.name} (${color.primary} / ${color.accent}) • ${modeShort}`;
+    }
+  }
+
+  function resetToGoldenStack() {
+    if (selectArchPattern) selectArchPattern.selectedIndex = 0;
+    if (selectArchState) selectArchState.selectedIndex = 0;
+    if (selectArchDatabase) selectArchDatabase.selectedIndex = 0;
+    if (selectArchNav) selectArchNav.selectedIndex = 0;
+    if (selectArchModel) selectArchModel.selectedIndex = 0;
+    if (selectArchNetwork) selectArchNetwork.selectedIndex = 0;
+    if (selectColorPalette) selectColorPalette.selectedIndex = 0;
+    if (selectColorMode) selectColorMode.selectedIndex = 0;
+    updateColorUI();
+    updateArchSummary();
+  }
+
+  function getSelectedArchitecturePrompt(rawUserPrompt) {
+    const arch = getSelectedArchitecture();
+    const color = getColorConfig();
+    const isOffline = arch.network.includes('Tidak Ada') || arch.network.includes('Offline');
+    const isNoDb = arch.database.includes('Tidak Ada') || arch.database.includes('In-Memory');
+    const isNoStateLib = arch.state.includes('Tidak Ada') || arch.state.includes('StatefulWidget');
+    const isNoNavLib = arch.nav.includes('Tidak Ada') || arch.nav.includes('Navigator 1.0');
+    const isNoGenerator = arch.model.includes('Tidak Ada') || arch.model.includes('Plain Dart');
+
+    const notes = [];
+    if (isOffline) {
+      notes.push('• CATATAN NETWORK: Aplikasi ini dirancang 100% FULL OFFLINE (Standalone). DILARANG menambahkan ketergantungan API, endpoint REST, Dio, atau internet pada PRD.');
+    }
+    if (isNoDb) {
+      notes.push('• CATATAN DATABASE: Tidak menggunakan database lokal permanen (Data dikelola secara in-memory/runtime session).');
+    }
+    if (isNoStateLib) {
+      notes.push('• CATATAN STATE: Menggunakan StatefulWidget standar Flutter bawaan tanpa dependensi library eksternal.');
+    }
+    if (isNoNavLib) {
+      notes.push('• CATATAN NAVIGASI: Menggunakan Navigator 1.0 bawaan tanpa routing library eksternal.');
+    }
+    if (isNoGenerator) {
+      notes.push('• CATATAN MODEL: Menggunakan class Dart murni tanpa build_runner / Freezed.');
+    }
+
+    const specialInstructions = notes.length > 0
+      ? `\n[PANDUAN ADAPTASI KHUSUS PILIHAN DEVELOPER]:\n${notes.join('\n')}\n`
+      : '';
+
+    return `[PANDUAN KONFIGURASI ARSITEKTUR & TECH STACK PILIHAN DEVELOPER]:
+1. Pola Arsitektur: ${arch.pattern}
+2. State Management: ${arch.state}
+3. Database Lokal & Persistence: ${arch.database}
+4. Navigasi & Routing: ${arch.nav}
+5. Data Modeling & Immutability: ${arch.model}
+6. Network Client: ${arch.network}
+
+[PANDUAN SISTEM PEWARNAAN & MATERIAL 3 DESIGN TOKENS]:
+• Palet Warna UI: ${color.name} (Primary: ${color.primary}, Accent/Secondary: ${color.accent})
+• Mode Tema: ${color.mode}
+• Aturan Desain Wajib: Bagian UI/UX Specs WAJIB memuat tabel Material 3 ColorScheme Tokens (Primary: ${color.primary}, Accent: ${color.accent}, Surface, Error, Outline) dan class AppColors / AppTheme. DILARANG menggunakan warna hardcoded sembarangan!
+
+[ATURAN MAIN WAJIB RESPONSIF TABLET, TAMPILAN TABEL & BEBAS UI OVERFLOWED]:
+1. BREAKPOINTS & TAMPILAN ADAPTIF:
+   • Mobile (< 600dp): BottomNavigationBar, Single-column vertical scroll, Fullscreen Modal.
+   • Tablet Portrait (600dp - 840dp): NavigationRail terkompresi, Grid 2 kolom, Dialog terpusat (max-width 560dp).
+   • Tablet Landscape (> 840dp): Extended NavigationRail / Permanent Drawer, Master-Detail split pane (Daftar di kiri, Detail di kanan), Grid 3-4 kolom.
+2. TAMPILAN TABEL & DATA LIST (ANTI-OVERFLOW TABLE RULE):
+   • Di Mobile (< 600dp): Data tabular DILARANG menggunakan DataTable statis yang memicu horizontal RenderFlex overflow! Wajib dialihkan ke Adaptive Card List bertumpuk atau jika tetap menggunakan DataTable wajib dibungkus SingleChildScrollView(scrollDirection: Axis.horizontal).
+   • Di Tablet (>= 600dp): Gunakan PaginatedDataTable / DataTable dengan lebar kolom proporsional, column sorting, dan TextOverflow.ellipsis untuk teks panjang.
+3. ZERO RENDERFLEX OVERFLOW GUARD (100% BEBAS ERROR GARIS KUNING-HITAM):
+   • Form & Input Safety: Seluruh form input wajib Scaffold(resizeToAvoidBottomInset: true) + SingleChildScrollView(physics: ClampingScrollPhysics()) + SafeArea.
+   • Row Dynamic Safety: Setiap Row dengan teks dinamis bersama icon/tombol WAJIB membungkus widget teks dengan Flexible atau Expanded.
+[ATURAN MAIN SYARAT GOOGLE TERBARU (ANDROID VITALS & PERFORMA MEMORI)]:
+1. DYNAMIC MEMORY USAGE (ANONYMOUS RSS + SWAP):
+   • Alokasi memori dinamis ketat: Wajib spesifikasikan lifecycle cleanup (dispose controller/animation/streams, close bloc/cubit) untuk membasmi memory leak.
+   • Batasi in-memory retention: Gunakan chunking pagination dan LRU eviction policy agar Anonymous RSS + Swap tetap rendah, mencegah LMK kill di background & sanksi Android Vitals.
+2. BITMAP MEMORY USAGE OPTIMIZATION:
+   • Dilarang decode gambar resolusi penuh: Wajib tentukan cacheWidth & cacheHeight (atau ResizeImage) sesuai ukuran widget fisik pada layar untuk menekan Graphic Buffer / ashmem.
+   • Gunakan format WebP / SVG vektor dan konfigurasi batasan ImageCache (maximumSizeBytes).
+3. OPTIMIZED DEX CODE & BUILD RELEASE:
+   • Konfigurasi R8 Code & Resource Shrinking (minifyEnabled true, shrinkResources true, proguard-android-optimize.txt) agar method count dan ukuran DEX minimal.
+   • Baseline Profiles (androidx.profileinstaller) untuk AOT compilation DEX code, memangkas cold-start latency dan runtime memory overhead.
+   • Distribusi menggunakan Android App Bundle (.aab) dengan dynamic split APKs.
+${specialInstructions}
+[INSTRUKSI WAJIB]:
+Sajikan dokumen PRD teknis lengkap yang secara patuh mengintegrasikan arsitektur, teknologi, sistem pewarnaan, aturan responsif tablet, serta syarat Google Vitals terbaru (Dynamic RSS/Swap, Bitmap Memory, Optimized DEX) ke dalam seluruh bagian (Screen Breakdown, GoRouter, State Management, Data Contracts, UI/UX Specs, dan Acceptance Criteria).
+
+[KEBUTUHAN FITUR / APLIKASI DARI USER]:
+${rawUserPrompt}`;
+  }
+
+  if (btnResetGolden) {
+    btnResetGolden.addEventListener('click', resetToGoldenStack);
+  }
+
+  if (btnToggleArch && prdArchGuide) {
+    btnToggleArch.addEventListener('click', () => {
+      const isCollapsed = prdArchGuide.classList.toggle('collapsed');
+      const toggleText = btnToggleArch.querySelector('.toggle-text');
+      if (toggleText) {
+        toggleText.textContent = isCollapsed ? 'Buka' : 'Tutup';
+      }
+      btnToggleArch.setAttribute('aria-expanded', !isCollapsed);
+    });
+  }
+
+  [
+    selectArchPattern,
+    selectArchState,
+    selectArchDatabase,
+    selectArchNav,
+    selectArchModel,
+    selectArchNetwork,
+  ].forEach((sel) => {
+    if (sel) {
+      sel.addEventListener('change', updateArchSummary);
+    }
+  });
+
+  if (selectColorPalette) {
+    selectColorPalette.addEventListener('change', updateColorUI);
+  }
+  if (selectColorMode) {
+    selectColorMode.addEventListener('change', updateColorUI);
+  }
+
+  if (pickerCustomPrimary && inputCustomPrimary) {
+    pickerCustomPrimary.addEventListener('input', () => {
+      inputCustomPrimary.value = pickerCustomPrimary.value;
+      updateColorUI();
+    });
+    inputCustomPrimary.addEventListener('input', () => {
+      if (inputCustomPrimary.value.startsWith('#')) {
+        pickerCustomPrimary.value = inputCustomPrimary.value;
+      }
+      updateColorUI();
+    });
+  }
+
+  if (pickerCustomAccent && inputCustomAccent) {
+    pickerCustomAccent.addEventListener('input', () => {
+      inputCustomAccent.value = pickerCustomAccent.value;
+      updateColorUI();
+    });
+    inputCustomAccent.addEventListener('input', () => {
+      if (inputCustomAccent.value.startsWith('#')) {
+        pickerCustomAccent.value = inputCustomAccent.value;
+      }
+      updateColorUI();
+    });
+  }
+
+  updateArchSummary();
+  updateColorUI();
+
   function switchMode(modeKey) {
     if (!MODE_CONFIG[modeKey]) return;
     currentMode = modeKey;
@@ -107,6 +551,15 @@ document.addEventListener('DOMContentLoaded', () => {
     modeTabs.forEach((tab) => {
       tab.classList.toggle('active', tab.getAttribute('data-mode') === modeKey);
     });
+
+    // Tampilkan panel pilihan arsitektur hanya pada Menu 1 (PRD)
+    if (prdArchGuide) {
+      if (modeKey === 'prd') {
+        prdArchGuide.classList.remove('hidden');
+      } else {
+        prdArchGuide.classList.add('hidden');
+      }
+    }
 
     userInput.placeholder = MODE_CONFIG[modeKey].placeholder;
     typingStatusText.textContent = MODE_CONFIG[modeKey].statusText;
@@ -222,6 +675,18 @@ document.addEventListener('DOMContentLoaded', () => {
       welcomeScreen.style.display = 'none';
     }
 
+    let rawText = text;
+    const isPRDDoc = sender === 'bot' && !isError && (
+      msgMode === 'prd' ||
+      rawText.includes('# 1. 📌') ||
+      rawText.includes('Product Requirement Document') ||
+      rawText.toLowerCase().includes('ringkasan eksekutif')
+    );
+
+    if (isPRDDoc) {
+      latestActivePRD = rawText;
+    }
+
     const wrapper = document.createElement('div');
     wrapper.classList.add('message-wrapper', sender);
 
@@ -231,13 +696,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (sender === 'user') {
       avatar.textContent = 'Dev';
     } else {
-      avatar.innerHTML = `<img src="flutter-logo.png" alt="FlutterCraft" class="bot-avatar-img" />`;
+      avatar.innerHTML = `<img src="flutter-logo.png?v=3" alt="FlutterCraft" class="bot-avatar-img" />`;
     }
 
     // Message Bubble
     const bubble = document.createElement('div');
     bubble.classList.add('message-bubble');
     if (isError) bubble.classList.add('error-bubble');
+
+    let contentContainer = null;
+    let editContainer = null;
+    let editTextarea = null;
 
     // Jika pesan user memiliki attachment file
     if (sender === 'user' && attachment) {
@@ -247,19 +716,107 @@ document.addEventListener('DOMContentLoaded', () => {
       attachBadge.innerHTML = `<span>${icon}</span> <span>${attachment.name} (${formatBytes(attachment.size)})</span>`;
       bubble.appendChild(attachBadge);
 
-      if (text) {
+      if (rawText) {
         const textElem = document.createElement('div');
-        textElem.textContent = text;
+        textElem.textContent = rawText;
         bubble.appendChild(textElem);
       }
     } else if (sender === 'bot') {
+      // 1. Rendered Markdown Container
+      contentContainer = document.createElement('div');
+      contentContainer.classList.add('message-rendered-content');
       if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
-        bubble.innerHTML = marked.parse(text);
+        contentContainer.innerHTML = marked.parse(rawText);
       } else {
-        bubble.textContent = text;
+        contentContainer.textContent = rawText;
+      }
+      bubble.appendChild(contentContainer);
+
+      // 2. In-Place PRD Editor (Hanya untuk dokumen PRD)
+      if (isPRDDoc) {
+        editContainer = document.createElement('div');
+        editContainer.classList.add('prd-edit-container', 'hidden');
+
+        const editHeader = document.createElement('div');
+        editHeader.classList.add('prd-edit-header');
+        editHeader.innerHTML = `
+          <span class="prd-edit-title">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+            Mode Edit PRD (Markdown)
+          </span>
+        `;
+
+        const editActions = document.createElement('div');
+        editActions.classList.add('prd-edit-actions');
+
+        const btnCancelEdit = document.createElement('button');
+        btnCancelEdit.type = 'button';
+        btnCancelEdit.classList.add('btn-cancel-edit');
+        btnCancelEdit.textContent = '❌ Batal';
+
+        const btnSaveEdit = document.createElement('button');
+        btnSaveEdit.type = 'button';
+        btnSaveEdit.classList.add('btn-save-edit');
+        btnSaveEdit.innerHTML = `💾 Simpan Perubahan`;
+
+        editActions.appendChild(btnCancelEdit);
+        editActions.appendChild(btnSaveEdit);
+        editHeader.appendChild(editActions);
+
+        editTextarea = document.createElement('textarea');
+        editTextarea.classList.add('prd-edit-textarea');
+        editTextarea.spellcheck = false;
+        editTextarea.placeholder = 'Tulis atau edit teks markdown PRD di sini...';
+
+        editContainer.appendChild(editHeader);
+        editContainer.appendChild(editTextarea);
+        bubble.appendChild(editContainer);
+
+        // Handler Batal Edit
+        btnCancelEdit.addEventListener('click', () => {
+          editContainer.classList.add('hidden');
+          contentContainer.classList.remove('hidden');
+          meta.classList.remove('hidden');
+          if (pipelineBar) pipelineBar.classList.remove('hidden');
+        });
+
+        // Handler Simpan Perubahan Edit
+        btnSaveEdit.addEventListener('click', () => {
+          const updatedVal = editTextarea.value.trim();
+          if (updatedVal) {
+            rawText = updatedVal;
+            latestActivePRD = updatedVal;
+            if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
+              contentContainer.innerHTML = marked.parse(rawText);
+            } else {
+              contentContainer.textContent = rawText;
+            }
+            editContainer.classList.add('hidden');
+            contentContainer.classList.remove('hidden');
+            meta.classList.remove('hidden');
+            if (pipelineBar) pipelineBar.classList.remove('hidden');
+            showToast('✓ Dokumen PRD berhasil diperbarui!', 'success');
+          }
+        });
       }
     } else {
-      bubble.textContent = text;
+      if (sender === 'user' && msgMode === 'prd') {
+        const archBadge = document.createElement('div');
+        archBadge.classList.add('user-arch-tag');
+        const arch = getSelectedArchitecture();
+        const color = getColorConfig();
+        const isOffline = arch.network.includes('Tidak Ada') || arch.network.includes('Offline');
+        const netTag = isOffline ? '📴 Offline' : arch.network.split(' ')[0];
+        const colorTag = color.name.includes('Tidak Ada') ? 'Polos' : color.name.split(' ')[0];
+        archBadge.textContent = `🏛️ ${arch.pattern.split(' ')[0]} • ${arch.state.split(' ')[0]} • ${netTag} • 🎨 ${colorTag}`;
+        bubble.appendChild(archBadge);
+      }
+      const textElem = document.createElement('div');
+      textElem.textContent = rawText;
+      bubble.appendChild(textElem);
     }
 
     // Metadata & Action Buttons
@@ -269,6 +826,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const timeSpan = document.createElement('span');
     timeSpan.textContent = getCurrentTime();
     meta.appendChild(timeSpan);
+
+    let pipelineBar = null;
 
     if (sender === 'bot' && !isError) {
       // Tombol Salin
@@ -282,7 +841,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Salin
       `;
       copyBtn.addEventListener('click', () => {
-        navigator.clipboard.writeText(text).then(() => {
+        navigator.clipboard.writeText(rawText).then(() => {
           copyBtn.innerHTML = '✓ Tersalin!';
           setTimeout(() => {
             copyBtn.innerHTML = `
@@ -297,8 +856,30 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       meta.appendChild(copyBtn);
 
+      // Tombol Edit PRD (In-Place Markdown Editor)
+      if (isPRDDoc && editContainer && editTextarea) {
+        const editBtn = document.createElement('button');
+        editBtn.classList.add('edit-prd-btn');
+        editBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+          Edit PRD
+        `;
+        editBtn.addEventListener('click', () => {
+          editTextarea.value = rawText;
+          contentContainer.classList.add('hidden');
+          meta.classList.add('hidden');
+          if (pipelineBar) pipelineBar.classList.add('hidden');
+          editContainer.classList.remove('hidden');
+          editTextarea.focus();
+        });
+        meta.appendChild(editBtn);
+      }
+
       // Tombol Download Markdown / PRD
-      if (msgMode === 'prd' || text.toLowerCase().includes('prd') || text.includes('## ') || text.includes('# ')) {
+      if (isPRDDoc || rawText.includes('## ') || rawText.includes('# ')) {
         const downloadBtn = document.createElement('button');
         downloadBtn.classList.add('download-prd-btn');
         downloadBtn.innerHTML = `
@@ -311,8 +892,8 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         downloadBtn.addEventListener('click', () => {
           const dateStr = new Date().toISOString().slice(0, 10);
-          const filename = msgMode === 'prd' ? `Flutter_Feature_PRD_${dateStr}.md` : `Flutter_Architecture_${dateStr}.md`;
-          downloadAsMarkdown(filename, text);
+          const filename = isPRDDoc ? `Flutter_Feature_PRD_${dateStr}.md` : `Flutter_Architecture_${dateStr}.md`;
+          downloadAsMarkdown(filename, rawText);
         });
         meta.appendChild(downloadBtn);
       }
@@ -321,55 +902,60 @@ document.addEventListener('DOMContentLoaded', () => {
     bubble.appendChild(meta);
 
     // ==========================================
-    // ALUR OTOMATIS: PIPELINE NEXT-STEP BUTTONS
+    // ALUR PIPELINE TERKONTROL (TANPA AUTO-SUBMIT)
     // ==========================================
     if (sender === 'bot' && !isError) {
-      const pipelineBar = document.createElement('div');
+      pipelineBar = document.createElement('div');
       pipelineBar.classList.add('pipeline-action-bar');
 
-      if (msgMode === 'prd' || text.toLowerCase().includes('prd')) {
-        // Tombol Lanjut ke Langkah 2: UI Flutter
+      if (isPRDDoc) {
+        // Tombol 1: Bawa ke Menu 2 (UI Flutter) - Siapkan Draft tanpa langsung auto-submit
         const btnNextUI = document.createElement('button');
         btnNextUI.classList.add('pipeline-btn');
         btnNextUI.innerHTML = `
           <span>🎨</span>
-          <span>Lanjut Langkah 2: Buat UI Flutter dari PRD Ini</span>
+          <span>Bawa ke Menu 2: Siapkan UI Flutter</span>
         `;
         btnNextUI.addEventListener('click', () => {
           switchMode('flutter_ui');
-          userInput.value = 'Berdasarkan PRD di atas, buatkan kode UI Flutter modern (Material 3 Anti-Slop, atomic widgets, shimmer skeleton loading, dan micro-interactions) untuk screen utamanya.';
+          latestActivePRD = rawText;
+          userInput.value = 'Berdasarkan PRD di atas, tolong buatkan kode Flutter UI modern (Material 3 Anti-Slop, Atomic Widgets, Shimmer Loading, Anti-Overflow) untuk screen: \n[Sebutkan nama screen spesifik dari PRD, misal: HomeScreen / DetailScreen]';
           autoResizeTextarea();
-          chatForm.dispatchEvent(new Event('submit'));
+          userInput.focus();
+          showToast('🎨 Draf UI disiapkan di Menu 2! Tentukan nama screen lalu klik Kirim.');
         });
         pipelineBar.appendChild(btnNextUI);
 
-        // Tombol Lanjut ke Langkah 3: Arsitektur & State
+        // Tombol 2: Bawa ke Menu 3 (Arsitektur & State) - Siapkan Draft tanpa langsung auto-submit
         const btnNextState = document.createElement('button');
         btnNextState.classList.add('pipeline-btn', 'accent');
         btnNextState.innerHTML = `
           <span>⚙️</span>
-          <span>Lanjut Langkah 3: Buat State & Logic</span>
+          <span>Bawa ke Menu 3: Siapkan State & Logic</span>
         `;
         btnNextState.addEventListener('click', () => {
           switchMode('state');
-          userInput.value = 'Berdasarkan PRD di atas, rancang arsitektur state management (Riverpod AsyncNotifier / BLoC), model data DTO, dan repository pattern-nya.';
+          latestActivePRD = rawText;
+          userInput.value = 'Berdasarkan PRD di atas, tolong rancang arsitektur State Management (BLoC/Cubit), UseCases, Repository, dan Data Flow untuk modul: \n[Sebutkan nama modul atau fitur spesifik dari PRD di sini]';
           autoResizeTextarea();
-          chatForm.dispatchEvent(new Event('submit'));
+          userInput.focus();
+          showToast('⚙️ Draf State disiapkan di Menu 3! Tentukan modul lalu klik Kirim.');
         });
         pipelineBar.appendChild(btnNextState);
       } else if (msgMode === 'flutter_ui') {
-        // Tombol Lanjut dari UI ke State
+        // Tombol dari UI ke State - Siapkan Draft tanpa auto-submit
         const btnNextState = document.createElement('button');
         btnNextState.classList.add('pipeline-btn', 'accent');
         btnNextState.innerHTML = `
           <span>⚙️</span>
-          <span>Lanjut Langkah 3: Buat State Management untuk UI Ini</span>
+          <span>Bawa ke Menu 3: Siapkan State untuk UI Ini</span>
         `;
         btnNextState.addEventListener('click', () => {
           switchMode('state');
-          userInput.value = 'Berdasarkan kode UI Flutter di atas, buatkan arsitektur state management (Riverpod/BLoC), controller, dan data handling-nya.';
+          userInput.value = 'Berdasarkan kode UI Flutter yang telah dibuat di atas, buatkan arsitektur state management (BLoC/Cubit), controller, dan data handling-nya.';
           autoResizeTextarea();
-          chatForm.dispatchEvent(new Event('submit'));
+          userInput.focus();
+          showToast('⚙️ Draf State disiapkan di Menu 3! Silakan periksa lalu klik Kirim.');
         });
         pipelineBar.appendChild(btnNextState);
       }
@@ -533,14 +1119,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       let data;
+      let messageToSend = userMessage;
+      if (requestMode === 'prd') {
+        messageToSend = getSelectedArchitecturePrompt(userMessage);
+      } else if (latestActivePRD && (requestMode === 'flutter_ui' || requestMode === 'state') && userMessage.toLowerCase().includes('prd')) {
+        messageToSend = `[REFERENSI DOKUMEN PRD YANG TELAH DISETUJUI & DIEDIT]:
+${latestActivePRD}
+
+[INSTRUKSI DEVELOPER]:
+${userMessage}`;
+      }
+
       if (fileToSend) {
         typingStatusText.textContent = 'FlutterCraft sedang menganalisis berkas media...';
         const formData = new FormData();
         formData.append('file', fileToSend);
         if (userMessage) {
-          formData.append('prompt', userMessage);
+          formData.append('prompt', messageToSend);
         }
         formData.append('mode', requestMode);
+        if (selectedModelId) {
+          formData.append('model', selectedModelId);
+        }
 
         const response = await fetch(MULTIMODAL_ENDPOINT, {
           method: 'POST',
@@ -559,9 +1159,10 @@ document.addEventListener('DOMContentLoaded', () => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            message: userMessage,
+            message: messageToSend,
             history: conversationHistory,
             mode: requestMode,
+            model: selectedModelId,
           }),
           signal: currentAbortController.signal,
         });
